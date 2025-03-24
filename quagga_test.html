@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuaggaJS Barcode Scanner</title>
+  <style>
+    /* Container for the live video stream */
+    #interactive {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      margin: 20px auto;
+      border: 2px solid #ccc;
+    }
+    /* Video should fill container */
+    #interactive video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    /* Debug overlay canvas styling */
+    canvas.drawing, canvas.drawingBuffer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #result {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 20px;
+      color: green;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f8f8;
+    }
+    h2 {
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h2>QuaggaJS Barcode Scanner</h2>
+  <div id="interactive"></div>
+  <div id="result">Waiting for barcode...</div>
+
+  <!-- Load Quagga2 from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // Enforce secure context: HTTPS or localhost
+      if (!location.protocol.startsWith("https") && location.hostname !== "localhost") {
+        document.getElementById("result").textContent =
+          "Please run this page over HTTPS or on localhost.";
+        return;
+      }
+
+      const config = {
+        inputStream: {
+          type: "LiveStream",
+          target: document.querySelector("#interactive"),
+          constraints: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: { ideal: "environment" }
+          }
+        },
+        decoder: {
+          readers: ["code_128_reader"]
+        },
+        locate: true,
+        numOfWorkers: navigator.hardwareConcurrency || 4,
+        debug: false
+      };
+
+      // Initialize QuaggaJS
+      Quagga.init(config, function(err) {
+        if (err) {
+          console.error("QuaggaJS initialization error:", err);
+          document.getElementById("result").textContent = "Initialization error: " + err.message;
+          return;
+        }
+        console.log("QuaggaJS initialized successfully!");
+        Quagga.start();
+      });
+
+      // Debug: Draw overlays (if enabled)
+      Quagga.onProcessed(function(result) {
+        const drawingCanvas = Quagga.canvas.dom.overlay;
+        const drawingCtx = Quagga.canvas.ctx.overlay;
+        if (drawingCanvas && drawingCtx) {
+          drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+          if (result && result.boxes) {
+            result.boxes.forEach(function(box) {
+              Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "red", lineWidth: 2 });
+            });
+          }
+          if (result && result.codeResult) {
+            Quagga.ImageDebug.drawPath(result.line, { x: "x", y: "y" }, drawingCtx, { color: "green", lineWidth: 3 });
+          }
+        }
+      });
+
+      // Handle barcode detection
+      Quagga.onDetected(function(data) {
+        const code = data.codeResult.code;
+        document.getElementById("result").textContent = "Barcode: " + code;
+        console.log("Barcode detected:", code);
+        // Optionally, stop scanning after detection:
+        // Quagga.stop();
+      });
+    });
+  </script>
+</body>
+</html>
